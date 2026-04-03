@@ -41,6 +41,14 @@ class FlashcardController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        if (!$request->user()->canUse('flashcard')) {
+            return response()->json([
+                'error' => 'Monthly flashcard limit reached',
+                'upgrade' => true,
+            ], 403);
+        }
+        $request->user()->logUsage('flashcard');
+
         $document = $request->user()
             ->documents()
             ->where('uuid', $request->document_uuid)

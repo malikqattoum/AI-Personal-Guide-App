@@ -44,6 +44,14 @@ class AudioSummaryController extends Controller
             return response()->json(['error' => 'Document has no extractable text'], 400);
         }
 
+        if (!$request->user()->canUse('audio_summary')) {
+            return response()->json([
+                'error' => 'Monthly audio summary limit reached',
+                'upgrade' => true,
+            ], 403);
+        }
+        $request->user()->logUsage('audio_summary');
+
         $title = $request->title ?? "Summary: {$document->title}";
 
         // Check if audio already exists

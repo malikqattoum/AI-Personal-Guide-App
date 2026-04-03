@@ -43,6 +43,14 @@ class DocumentController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        if (!$request->user()->canUse('document')) {
+            return response()->json([
+                'error' => 'Monthly document limit reached',
+                'upgrade' => true,
+            ], 403);
+        }
+        $request->user()->logUsage('document');
+
         $file = $request->file('file');
         $title = $request->title ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
 

@@ -50,6 +50,14 @@ class ChatController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        if (!$request->user()->canUse('chat_message')) {
+            return response()->json([
+                'error' => 'Monthly chat limit reached',
+                'upgrade' => true,
+            ], 403);
+        }
+        $request->user()->logUsage('chat_message');
+
         $document = null;
         if ($request->document_uuid) {
             $document = $request->user()
