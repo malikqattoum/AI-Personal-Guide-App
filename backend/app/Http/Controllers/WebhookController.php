@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\StripeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Stripe\Exception\SignatureVerificationException;
 
 class WebhookController extends Controller
 {
@@ -21,8 +22,10 @@ class WebhookController extends Controller
         $signature = $request->header('Stripe-Signature');
 
         try {
-            $event = \Stripe\Event::constructFrom(
-                json_decode($payload, true)
+            $event = \Stripe\Webhook::constructEvent(
+                $payload,
+                $signature,
+                config('services.stripe.webhook_secret')
             );
 
             $this->stripeService->handleWebhookEvent($event);
@@ -33,8 +36,16 @@ class WebhookController extends Controller
             ]);
 
             return response('OK', 200);
+        } catch (SignatureVerificationException $e) {
+            Log::warning('Stripe webhook signature verification failed', [
+                'error_id' => 'WH_' . uniqid(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response('Invalid signature', 400);
         } catch (\Exception $e) {
             Log::error('Stripe webhook failed', [
+                'error_id' => 'WH_' . uniqid(),
                 'error' => $e->getMessage(),
             ]);
 

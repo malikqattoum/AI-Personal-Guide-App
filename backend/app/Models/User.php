@@ -27,6 +27,21 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    /**
+     * Free tier usage limits per action type per month.
+     */
+    public const USAGE_LIMITS = [
+        'document' => 5,
+        'flashcard' => 20,
+        'chat_message' => 20,
+        'audio_summary' => 2,
+    ];
+
+    /**
+     * Paid tiers that have unlimited usage.
+     */
+    public const UNLIMITED_TIERS = ['pro', 'enterprise'];
+
     protected function casts(): array
     {
         return [
@@ -84,18 +99,11 @@ class User extends Authenticatable
     {
         $tier = $this->subscription_tier;
 
-        if (in_array($tier, ['pro', 'enterprise'])) {
+        if (in_array($tier, self::UNLIMITED_TIERS)) {
             return true;
         }
 
-        $limits = [
-            'document' => 5,
-            'flashcard' => 20,
-            'chat_message' => 20,
-            'audio_summary' => 2,
-        ];
-
-        $limit = $limits[$actionType] ?? 0;
+        $limit = self::USAGE_LIMITS[$actionType] ?? 0;
         $used = UsageLog::getMonthlyUsage($this->id, $actionType);
 
         return $used < $limit;
@@ -105,20 +113,13 @@ class User extends Authenticatable
     {
         $tier = $this->subscription_tier;
 
-        $limits = [
-            'document' => 5,
-            'flashcard' => 20,
-            'chat_message' => 20,
-            'audio_summary' => 2,
-        ];
-
-        $limit = $limits[$actionType] ?? 0;
+        $limit = self::USAGE_LIMITS[$actionType] ?? 0;
         $used = UsageLog::getMonthlyUsage($this->id, $actionType);
 
         return [
             'used' => $used,
             'limit' => $limit,
-            'unlimited' => in_array($tier, ['pro', 'enterprise']),
+            'unlimited' => in_array($tier, self::UNLIMITED_TIERS),
         ];
     }
 

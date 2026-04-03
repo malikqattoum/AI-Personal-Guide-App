@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Services\StripeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Stripe\Exception\InvalidRequestException;
+use Stripe\Exception\AuthenticationException;
 
 class SubscriptionController extends Controller
 {
@@ -56,11 +59,15 @@ class SubscriptionController extends Controller
             return response()->json([
                 'checkout_url' => $session['url'],
             ]);
+        } catch (InvalidRequestException $e) {
+            Log::error('Stripe invalid request during checkout', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Invalid subscription request'], 400);
+        } catch (AuthenticationException $e) {
+            Log::critical('Stripe API authentication failed', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Payment service configuration error'], 500);
         } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Failed to create checkout session',
-                'message' => $e->getMessage(),
-            ], 500);
+            Log::error('Checkout session failed', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Failed to create checkout session'], 500);
         }
     }
 
@@ -78,11 +85,15 @@ class SubscriptionController extends Controller
             return response()->json([
                 'portal_url' => $session['url'],
             ]);
+        } catch (InvalidRequestException $e) {
+            Log::error('Stripe invalid request during portal', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Invalid portal request'], 400);
+        } catch (AuthenticationException $e) {
+            Log::critical('Stripe API authentication failed', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Payment service configuration error'], 500);
         } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Failed to create portal session',
-                'message' => $e->getMessage(),
-            ], 500);
+            Log::error('Portal session failed', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Failed to create portal session'], 500);
         }
     }
 
@@ -101,11 +112,15 @@ class SubscriptionController extends Controller
                 'message' => 'Subscription will cancel at period end',
                 'canceled_at' => $user->subscription->canceled_at,
             ]);
+        } catch (InvalidRequestException $e) {
+            Log::error('Stripe invalid request during cancel', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Invalid cancellation request'], 400);
+        } catch (AuthenticationException $e) {
+            Log::critical('Stripe API authentication failed', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Payment service configuration error'], 500);
         } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Failed to cancel subscription',
-                'message' => $e->getMessage(),
-            ], 500);
+            Log::error('Cancel subscription failed', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Failed to cancel subscription'], 500);
         }
     }
 

@@ -5,7 +5,10 @@ namespace App\Services;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Models\SubscriptionLog;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class StripeService
 {
@@ -172,11 +175,18 @@ class StripeService
         $tier = $data->metadata->tier ?? 'free';
 
         if (!$userId) {
+            Log::warning('Stripe webhook: checkout completed without user_id', [
+                'data' => json_decode(json_encode($data), true),
+            ]);
             return;
         }
 
         $user = User::find($userId);
         if (!$user) {
+            Log::warning('Stripe webhook: user not found for checkout completed', [
+                'user_id' => $userId,
+                'stripe_customer_id' => $data->customer ?? null,
+            ]);
             return;
         }
 
@@ -190,6 +200,9 @@ class StripeService
         $user = User::where('stripe_customer_id', $customerId)->first();
 
         if (!$user) {
+            Log::warning('Stripe webhook: user not found for subscription updated', [
+                'stripe_customer_id' => $customerId,
+            ]);
             return;
         }
 
@@ -201,9 +214,9 @@ class StripeService
 
         if ($user->subscription) {
             $user->subscription->update([
-                'current_period_start' => now()->timestamp($data->current_period_start),
-                'current_period_end' => now()->timestamp($data->current_period_end),
-                'canceled_at' => $data->cancel_at ? now()->timestamp($data->cancel_at) : null,
+                'current_period_start' => Carbon::createFromTimestamp($data->current_period_start),
+                'current_period_end' => Carbon::createFromTimestamp($data->current_period_end),
+                'canceled_at' => $data->cancel_at ? Carbon::createFromTimestamp($data->cancel_at) : null,
             ]);
         }
     }
@@ -214,6 +227,9 @@ class StripeService
         $user = User::where('stripe_customer_id', $customerId)->first();
 
         if (!$user) {
+            Log::warning('Stripe webhook: user not found for subscription deleted', [
+                'stripe_customer_id' => $customerId,
+            ]);
             return;
         }
 
@@ -231,7 +247,7 @@ class StripeService
 
         SubscriptionLog::create([
             'user_id' => $user->id,
-            'event' => $event->type ?? 'subscription.deleted',
+            'event' => 'customer.subscription.deleted',
             'stripe_event_id' => $data->id,
             'old_tier' => $oldTier,
             'new_tier' => 'free',
@@ -245,6 +261,9 @@ class StripeService
         $user = User::where('stripe_customer_id', $customerId)->first();
 
         if (!$user || !$user->subscription) {
+            Log::warning('Stripe webhook: user/subscription not found for payment failed', [
+                'stripe_customer_id' => $customerId,
+            ]);
             return;
         }
 
@@ -257,6 +276,9 @@ class StripeService
         $user = User::where('stripe_customer_id', $customerId)->first();
 
         if (!$user || !$user->subscription) {
+            Log::warning('Stripe webhook: user/subscription not found for payment succeeded', [
+                'stripe_customer_id' => $customerId,
+            ]);
             return;
         }
 
@@ -265,29 +287,31 @@ class StripeService
 
     protected function createOrUpdateSubscription(User $user, string $subscriptionId, string $customerId, ?float $amount, string $tier, string $status = 'active'): void
     {
-        $oldTier = $user->subscription_tier;
+        DB::transaction(function () use ($user, $subscriptionId, $customerId, $amount, $tier, $status) {
+            $oldTier = $user->subscription_tier;
 
-        $subscription = Subscription::updateOrCreate(
-            ['user_id' => $user->id],
-            [
-                'stripe_subscription_id' => $subscriptionId,
-                'stripe_customer_id' => $customerId,
-                'tier' => $tier,
-                'status' => $status,
-            ]
-        );
+            $subscription = Subscription::updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'stripe_subscription_id' => $subscriptionId,
+                    'stripe_customer_id' => $customerId,
+                    'tier' => $tier,
+                    'status' => $status,
+                ]
+            );
 
-        $user->subscription_tier = $tier;
-        $user->save();
+            $user->subscription_tier = $tier;
+            $user->save();
 
-        SubscriptionLog::create([
-            'user_id' => $user->id,
-            'event' => 'subscription_created',
-            'stripe_event_id' => $subscriptionId,
-            'old_tier' => $oldTier,
-            'new_tier' => $tier,
-            'metadata' => ['amount' => $amount],
-        ]);
+            SubscriptionLog::create([
+                'user_id' => $user->id,
+                'event' => 'subscription_created',
+                'stripe_event_id' => $subscriptionId,
+                'old_tier' => $oldTier,
+                'new_tier' => $tier,
+                'metadata' => ['amount' => $amount],
+            ]);
+        });
     }
 
     protected function determineTierFromPrice(?string $priceId): string
