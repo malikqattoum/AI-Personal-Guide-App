@@ -6,6 +6,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\FlashcardController;
 use App\Http\Controllers\StudySessionController;
+use App\Http\Controllers\SubscriptionController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -54,4 +55,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sessions/{uuid}', [StudySessionController::class, 'show']);
     Route::put('/sessions/{uuid}/stats', [StudySessionController::class, 'updateStats']);
     Route::get('/sessions/stats', [StudySessionController::class, 'stats']);
+
+    // Subscription
+    Route::get('/subscription', [SubscriptionController::class, 'show']);
+    Route::post('/subscription/checkout', [SubscriptionController::class, 'checkout']);
+    Route::post('/subscription/portal', [SubscriptionController::class, 'portal']);
+    Route::post('/subscription/cancel', [SubscriptionController::class, 'cancel']);
+    Route::get('/usage', [SubscriptionController::class, 'usage']);
 });
